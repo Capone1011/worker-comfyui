@@ -1,0 +1,73 @@
+name: Mi build de worker-comfyui (base, ComfyUI 0.29.0)
+
+# POR QUE UNO PROPIO Y NO EL DEL REPO. El `manual-build-all.yml` original no sirve en un fork:
+#   runs-on: [blacksmith-8vcpu-ubuntu-2204, linux]   <- runners de terceros que tu fork no tiene
+#   secrets.DOCKERHUB_USERNAME / DOCKERHUB_TOKEN     <- publica en el Docker Hub de RunPod
+# Este usa los runners GRATIS de GitHub y publica en TU ghcr.io con el token que GitHub ya te da.
+# No hace falta cuenta de Docker Hub ni ningun secreto.
+#
+# Y no hace falta tocar la version: `docker-bake.hcl` de `main` ya trae COMFYUI_VERSION = 0.29.0,
+# que es lo que necesita Krea 2 (pide >= 0.26.0).
+
+on:
+  workflow_dispatch:
+    inputs:
+      comfyui_version:
+        description: "Version de ComfyUI a instalar"
+        required: true
+        default: "0.29.0"
+        type: string
+
+jobs:
+  base:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write        # para poder publicar en ghcr.io
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      # Los runners gratis vienen con poco disco libre y esta imagen es grande.
+      # El workflow original de RunPod hace justo esto, por el mismo motivo.
+      - name: Hacer sitio en el disco
+        run: |
+          sudo rm -rf /usr/share/dotnet /opt/ghc /usr/local/share/boost "$AGENT_TOOLSDIRECTORY"
+          sudo rm -rf /usr/local/lib/android /opt/hostedtoolcache
+          df -h /
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Entrar en ghcr.io
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Nombre de la imagen en minusculas
+        id: img
+        run: echo "name=ghcr.io/$(echo '${{ github.repository_owner }}' | tr '[:upper:]' '[:lower:]')/worker-comfyui" >> $GITHUB_OUTPUT
+
+      - name: Compilar y publicar (target base)
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: ./Dockerfile
+          target: base
+          push: true
+          build-args: |
+            COMFYUI_VERSION=${{ inputs.comfyui_version }}
+            CUDA_VERSION_FOR_COMFY=12.8
+          tags: |
+            ${{ steps.img.outputs.name }}:${{ inputs.comfyui_version }}-base
+            ${{ steps.img.outputs.name }}:latest
+
+      - name: Como se llama tu imagen
+        run: |
+          echo "=================================================="
+          echo "  ${{ steps.img.outputs.name }}:${{ inputs.comfyui_version }}-base"
+          echo "=================================================="
+          echo "Pasale ESA linea a Claude para que cambie la plantilla del endpoint."
