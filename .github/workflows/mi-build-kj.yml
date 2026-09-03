@@ -1,0 +1,88 @@
+name: Mi build de worker-comfyui CON nodos (Krea 2 + KJNodes)
+
+# HERMANO de `mi-build.yml`, y a proposito UNO APARTE (Pedro, 2026-09-03: «hay que hacerlo sin
+# que afecte a v8 y v9»). Este publica SOLO la etiqueta que le digas (por defecto `0.29.0-kj`):
+# nunca toca `0.29.0-base` ni `latest`, que son las que usan las plantillas de hoy. Asi la
+# plantilla de k2 se cambia a la etiqueta nueva y, si algo va mal, se vuelve a la vieja en un clic.
+#
+# POR QUE HACE FALTA. Krea 2 lee pesos `(palabra:2.0)` y pesos NEGATIVOS `(cosa:-2)` solo con
+# el nodo `Krea2PromptWeight` del paquete KJNodes; el worker de hoy no lo tiene (preguntado el
+# 03-09 con un grafo minimo: «Node 'Krea2PromptWeight' not found») y los nodos NO se pueden
+# poner por el volumen de red (guia oficial: «not suitable for installing custom nodes»).
+
+on:
+  workflow_dispatch:
+    inputs:
+      comfyui_version:
+        description: "Version de ComfyUI a instalar"
+        required: true
+        default: "0.29.0"
+        type: string
+      nodos:
+        description: "Nodos del registro Comfy a instalar, separados por espacio"
+        required: true
+        default: "comfyui-kjnodes"
+        type: string
+      etiqueta:
+        description: "Etiqueta de la imagen (NUNCA la -base que usan las plantillas de hoy)"
+        required: true
+        default: "0.29.0-kj"
+        type: string
+
+jobs:
+  base-con-nodos:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Hacer sitio en el disco
+        run: |
+          sudo rm -rf /usr/share/dotnet /opt/ghc /usr/local/share/boost "$AGENT_TOOLSDIRECTORY"
+          sudo rm -rf /usr/local/lib/android /opt/hostedtoolcache
+          df -h /
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Entrar en ghcr.io
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Nombre de la imagen en minusculas
+        id: img
+        run: echo "name=ghcr.io/$(echo '${{ github.repository_owner }}' | tr '[:upper:]' '[:lower:]')/worker-comfyui" >> $GITHUB_OUTPUT
+
+      - name: No pisar las etiquetas que usan las plantillas de hoy
+        run: |
+          case "${{ inputs.etiqueta }}" in
+            *-base|latest) echo "ETIQUETA PROHIBIDA: ${{ inputs.etiqueta }} (es la de v8/v9 o la de k2 de hoy)"; exit 1 ;;
+          esac
+
+      - name: Compilar y publicar (target base + nodos)
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: ./Dockerfile
+          target: base
+          push: true
+          build-args: |
+            COMFYUI_VERSION=${{ inputs.comfyui_version }}
+            CUDA_VERSION_FOR_COMFY=12.8
+            CUSTOM_NODES=${{ inputs.nodos }}
+          tags: |
+            ${{ steps.img.outputs.name }}:${{ inputs.etiqueta }}
+
+      - name: Como se llama tu imagen
+        run: |
+          echo "=================================================="
+          echo "  ${{ steps.img.outputs.name }}:${{ inputs.etiqueta }}"
+          echo "=================================================="
+          echo "Esta va SOLO a la plantilla krea2-prueba-tpl. La de v8/v9 no se toca."

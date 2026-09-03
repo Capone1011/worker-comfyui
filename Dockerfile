@@ -127,6 +127,17 @@ ENV PIP_NO_INPUT=1
 COPY scripts/comfy-manager-set-mode.sh /usr/local/bin/comfy-manager-set-mode
 RUN chmod +x /usr/local/bin/comfy-manager-set-mode
 
+# Nodos personalizados DENTRO de la imagen (2026-09-03). Vacio = ninguno, y la imagen queda
+# byte a byte como la -base de siempre (la que usan v8/v9 y k2 hoy). Con
+#   --build-arg CUSTOM_NODES="comfyui-kjnodes"
+# instala KJNodes, que trae `Krea2PromptWeight`: pesos `(palabra:2.0)` y negativos `(cosa:-2)`
+# para Krea 2. Va por la imagen porque los nodos NO se pueden poner en el volumen de red
+# (guia oficial de worker-comfyui: «not suitable for installing custom nodes»). Nombres del
+# registro: https://registry.comfy.org/ . El instalador falla con codigo distinto de cero si
+# algun nodo no se instala: no hay imagen «con el nodo a medias».
+ARG CUSTOM_NODES=""
+RUN if [ -n "$CUSTOM_NODES" ]; then comfy-node-install $CUSTOM_NODES; fi
+
 # Set the default command to run when starting the container
 CMD ["/start.sh"]
 
