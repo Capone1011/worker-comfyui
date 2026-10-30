@@ -138,6 +138,24 @@ RUN chmod +x /usr/local/bin/comfy-manager-set-mode
 ARG CUSTOM_NODES=""
 RUN if [ -n "$CUSTOM_NODES" ]; then comfy-node-install $CUSTOM_NODES; fi
 
+# Nodos desde un REPO GIT (2026-10-30), para los que NO estan en el registro de Comfy. El caso:
+# `alexw5702-afk/krea2-anypaint` (los tres nodos de la LoRA AnyPaint, el inpaint de Krea 2 que
+# usa la comunidad; api.comfy.org/nodes/krea2-anypaint da 404). Vacio = ninguno, y la imagen
+# queda como estaba. URLs separadas por espacio. Cada repo se clona en custom_nodes y, si trae
+# requirements.txt, se instala con el mismo uv del venv. Si un clon falla, falla la imagen.
+# Y se repite el arranque de prueba en CPU: un nodo que no importa se caza AQUI, no en un worker
+# vivo que «no responde».
+ARG CUSTOM_NODE_REPOS=""
+RUN if [ -n "$CUSTOM_NODE_REPOS" ]; then \
+      cd /comfyui/custom_nodes \
+      && for u in $CUSTOM_NODE_REPOS; do \
+           git clone --depth 1 "$u" || exit 1; \
+           d=$(basename "$u" .git); \
+           if [ -f "$d/requirements.txt" ]; then uv pip install -r "$d/requirements.txt"; fi; \
+         done \
+      && cd /comfyui && timeout 300 python main.py --quick-test-for-ci --cpu; \
+    fi
+
 # Set the default command to run when starting the container
 CMD ["/start.sh"]
 

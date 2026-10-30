@@ -1,0 +1,95 @@
+name: Mi build de worker-comfyui CON nodos desde git (Krea 2 + AnyPaint)
+
+# HERMANO de `mi-build-kj.yml` (2026-10-30). Publica SOLO la etiqueta que le digas (por defecto
+# `0.29.0-anypaint`): nunca toca `0.29.0-base` ni `latest`, que son las que usan las plantillas
+# de hoy, ni `0.29.0-kj`.
+#
+# POR QUE HACE FALTA. Krea 2 no tiene inpaint nativo, y con los nodos de serie
+# (VAEEncodeForInpaint / SetLatentNoiseMask) el cuerpo de Subtify Cuerpo salia mal (medido el
+# 30-10: 4 de 5 con la silueta de la prenda). Lo que usa la comunidad es la LoRA AnyPaint
+# (`yijunwang2/krea2-anypaint`) con sus tres nodos (`alexw5702-afk/krea2-anypaint`), que NO
+# estan en el registro de Comfy (api.comfy.org/nodes/krea2-anypaint da 404): por eso este
+# workflow clona repos git, ademas de los nodos del registro.
+
+on:
+  workflow_dispatch:
+    inputs:
+      comfyui_version:
+        description: "Version de ComfyUI a instalar"
+        required: true
+        default: "0.29.0"
+        type: string
+      nodos:
+        description: "Nodos del registro Comfy, separados por espacio (vacio = ninguno)"
+        required: false
+        default: ""
+        type: string
+      repos:
+        description: "Repos git de nodos, URLs separadas por espacio (vacio = ninguno)"
+        required: false
+        default: "https://github.com/alexw5702-afk/krea2-anypaint.git"
+        type: string
+      etiqueta:
+        description: "Etiqueta de la imagen (NUNCA -base, latest ni la -kj de hoy)"
+        required: true
+        default: "0.29.0-anypaint"
+        type: string
+
+jobs:
+  base-con-nodos-git:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Hacer sitio en el disco
+        run: |
+          sudo rm -rf /usr/share/dotnet /opt/ghc /usr/local/share/boost "$AGENT_TOOLSDIRECTORY"
+          sudo rm -rf /usr/local/lib/android /opt/hostedtoolcache
+          df -h /
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Entrar en ghcr.io
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Nombre de la imagen en minusculas
+        id: img
+        run: echo "name=ghcr.io/$(echo '${{ github.repository_owner }}' | tr '[:upper:]' '[:lower:]')/worker-comfyui" >> $GITHUB_OUTPUT
+
+      - name: No pisar las etiquetas que usan las plantillas de hoy
+        run: |
+          case "${{ inputs.etiqueta }}" in
+            *-base|latest|*-kj) echo "ETIQUETA PROHIBIDA: ${{ inputs.etiqueta }} (es la de v8/v9, la de k2 de hoy o la de KJNodes)"; exit 1 ;;
+          esac
+
+      - name: Compilar y publicar (target base + nodos del registro + repos git)
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: ./Dockerfile
+          target: base
+          push: true
+          build-args: |
+            COMFYUI_VERSION=${{ inputs.comfyui_version }}
+            CUDA_VERSION_FOR_COMFY=12.8
+            CUSTOM_NODES=${{ inputs.nodos }}
+            CUSTOM_NODE_REPOS=${{ inputs.repos }}
+          tags: |
+            ${{ steps.img.outputs.name }}:${{ inputs.etiqueta }}
+
+      - name: Como se llama tu imagen
+        run: |
+          echo "=================================================="
+          echo "  ${{ steps.img.outputs.name }}:${{ inputs.etiqueta }}"
+          echo "=================================================="
+          echo "Esta va SOLO a una plantilla de prueba. La de Aria (Krea 2) y la de v8/v9 no se tocan."
