@@ -15,8 +15,10 @@ on:
   # TAMBIEN POR PUSH a la rama `build-anypaint` (30-10): en el PC de Pedro no hay `gh` y su
   # Chrome no tiene abierta la sesion de GitHub, asi que el boton «Run workflow» no esta a
   # mano; un push a esa rama lo lanza con los valores por defecto de abajo.
+  # Y a la rama `build-edit` (30-10, tarde): la misma imagen MAS los nodos de Ostris
+  # (`ostris/ComfyUI-Krea2-Ostris-Edit`, para la LoRA krea2-inpaint-edit), etiqueta `0.29.0-edit`.
   push:
-    branches: [build-anypaint]
+    branches: [build-anypaint, build-edit]
   workflow_dispatch:
     inputs:
       comfyui_version:
@@ -73,8 +75,8 @@ jobs:
 
       - name: No pisar las etiquetas que usan las plantillas de hoy
         run: |
-          case "${{ inputs.etiqueta || '0.29.0-anypaint' }}" in
-            *-base|latest|*-kj) echo "ETIQUETA PROHIBIDA: ${{ inputs.etiqueta || '0.29.0-anypaint' }} (es la de v8/v9, la de k2 de hoy o la de KJNodes)"; exit 1 ;;
+          case "${{ inputs.etiqueta || (github.ref_name == 'build-edit' && '0.29.0-edit' || '0.29.0-anypaint') }}" in
+            *-base|latest|*-kj) echo "ETIQUETA PROHIBIDA: ${{ inputs.etiqueta || (github.ref_name == 'build-edit' && '0.29.0-edit' || '0.29.0-anypaint') }} (es la de v8/v9, la de k2 de hoy o la de KJNodes)"; exit 1 ;;
           esac
 
       - name: Compilar y publicar (target base + nodos del registro + repos git)
@@ -88,13 +90,13 @@ jobs:
             COMFYUI_VERSION=${{ inputs.comfyui_version || '0.29.0' }}
             CUDA_VERSION_FOR_COMFY=12.8
             CUSTOM_NODES=${{ inputs.nodos || '' }}
-            CUSTOM_NODE_REPOS=${{ inputs.repos || 'https://github.com/alexw5702-afk/krea2-anypaint.git' }}
+            CUSTOM_NODE_REPOS=${{ inputs.repos || (github.ref_name == 'build-edit' && 'https://github.com/alexw5702-afk/krea2-anypaint.git https://github.com/ostris/ComfyUI-Krea2-Ostris-Edit.git' || 'https://github.com/alexw5702-afk/krea2-anypaint.git') }}
           tags: |
-            ${{ steps.img.outputs.name }}:${{ inputs.etiqueta || '0.29.0-anypaint' }}
+            ${{ steps.img.outputs.name }}:${{ inputs.etiqueta || (github.ref_name == 'build-edit' && '0.29.0-edit' || '0.29.0-anypaint') }}
 
       - name: Como se llama tu imagen
         run: |
           echo "=================================================="
-          echo "  ${{ steps.img.outputs.name }}:${{ inputs.etiqueta || '0.29.0-anypaint' }}"
+          echo "  ${{ steps.img.outputs.name }}:${{ inputs.etiqueta || (github.ref_name == 'build-edit' && '0.29.0-edit' || '0.29.0-anypaint') }}"
           echo "=================================================="
           echo "Esta va SOLO a una plantilla de prueba. La de Aria (Krea 2) y la de v8/v9 no se tocan."
