@@ -145,12 +145,20 @@ RUN if [ -n "$CUSTOM_NODES" ]; then comfy-node-install $CUSTOM_NODES; fi
 # requirements.txt, se instala con el mismo uv del venv. Si un clon falla, falla la imagen.
 # Y se repite el arranque de prueba en CPU: un nodo que no importa se caza AQUI, no en un worker
 # vivo que «no responde».
+# FIJAR LA VERSION (07-11-2026): `URL@commit` clona y se queda en ESE commit, el que se reviso;
+# sin `@`, la punta de la rama por defecto como antes. Asi una actualizacion del autor no entra
+# en la imagen sin haberla mirado.
 ARG CUSTOM_NODE_REPOS=""
 RUN if [ -n "$CUSTOM_NODE_REPOS" ]; then \
       cd /comfyui/custom_nodes \
       && for u in $CUSTOM_NODE_REPOS; do \
-           git clone --depth 1 "$u" || exit 1; \
-           d=$(basename "$u" .git); \
+           url="${u%@*}"; ref=""; \
+           case "$u" in *.git@*) ref="${u##*@}";; esac; \
+           git clone --depth 1 "$url" || exit 1; \
+           d=$(basename "$url" .git); \
+           if [ -n "$ref" ]; then \
+             git -C "$d" fetch --depth 1 origin "$ref" && git -C "$d" checkout -q FETCH_HEAD || exit 1; \
+           fi; \
            if [ -f "$d/requirements.txt" ]; then uv pip install -r "$d/requirements.txt"; fi; \
          done \
       && cd /comfyui && timeout 300 python main.py --quick-test-for-ci --cpu; \
