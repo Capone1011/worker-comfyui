@@ -18,7 +18,7 @@ on:
   # Y a la rama `build-edit` (30-10, tarde): la misma imagen MAS los nodos de Ostris
   # (`ostris/ComfyUI-Krea2-Ostris-Edit`, para la LoRA krea2-inpaint-edit), etiqueta `0.29.0-edit`.
   # Y a la rama `build-editar` (07-11, Subtify Imagen, con el si de Pedro): AnyPaint MAS
-  # `lbouaraba/comfyui-krea2edit` fijado al commit revisado (13ef60f, v2.0.0: solo torch y comfy,
+  # `lbouaraba/comfyui-krea2edit` fijado al commit revisado (13ef60f20828949becada815d3cbc371eb5ccaab, el SHA COMPLETO: GitHub no deja bajar por el corto; v2.0.0: solo torch y comfy,
   # sin red ni comandos), los nodos de la LoRA «Krea 2 General Edit V2». Etiqueta `0.29.0-editar`.
   push:
     branches: [build-anypaint, build-edit, build-editar]
@@ -93,7 +93,7 @@ jobs:
             COMFYUI_VERSION=${{ inputs.comfyui_version || '0.29.0' }}
             CUDA_VERSION_FOR_COMFY=12.8
             CUSTOM_NODES=${{ inputs.nodos || '' }}
-            CUSTOM_NODE_REPOS=${{ inputs.repos || (github.ref_name == 'build-editar' && 'https://github.com/alexw5702-afk/krea2-anypaint.git https://github.com/lbouaraba/comfyui-krea2edit.git@13ef60f' || github.ref_name == 'build-edit' && 'https://github.com/alexw5702-afk/krea2-anypaint.git https://github.com/ostris/ComfyUI-Krea2-Ostris-Edit.git' || 'https://github.com/alexw5702-afk/krea2-anypaint.git') }}
+            CUSTOM_NODE_REPOS=${{ inputs.repos || (github.ref_name == 'build-editar' && 'https://github.com/alexw5702-afk/krea2-anypaint.git https://github.com/lbouaraba/comfyui-krea2edit.git@13ef60f20828949becada815d3cbc371eb5ccaab' || github.ref_name == 'build-edit' && 'https://github.com/alexw5702-afk/krea2-anypaint.git https://github.com/ostris/ComfyUI-Krea2-Ostris-Edit.git' || 'https://github.com/alexw5702-afk/krea2-anypaint.git') }}
           tags: |
             ${{ steps.img.outputs.name }}:${{ inputs.etiqueta || (github.ref_name == 'build-editar' && '0.29.0-editar' || github.ref_name == 'build-edit' && '0.29.0-edit' || '0.29.0-anypaint') }}
 
